@@ -5,6 +5,7 @@
 // @description  豆瓣'我看过的影视'页面优化：移除侧边栏，一行显示5个内容.
 // @author       Qiu
 // @match        *://movie.douban.com/people/*/collect*
+// @match        https://movie.douban.com/mine?status=collect
 // @grant        GM_addStyle
 // ==/UserScript==
 
@@ -121,7 +122,7 @@
     // 转换图片为高清
     function getHighResImageUrl(thumbUrl) {
         if (!thumbUrl) return '';
-        
+
         let highResUrl = thumbUrl;
         if (highResUrl.includes('/small/')) {
             highResUrl = highResUrl.replace('/small/', '/large/');
@@ -241,8 +242,8 @@
         if (gridView) {
             // 只隐藏内容，保留分页
             const items = gridView.querySelectorAll('.item');
-            items.forEach(item => { 
-                item.style.display = 'none'; 
+            items.forEach(item => {
+                item.style.display = 'none';
             });
         }
 
