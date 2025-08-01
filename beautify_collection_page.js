@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         豆瓣影视五列布局优化（修复版）
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  豆瓣'我看过的影视'页面优化：移除侧边栏，一行显示5个内容，修复不显示问题
 // @author       豆包编程助手
 // @match        *://movie.douban.com/people/*/collect*
@@ -10,6 +10,10 @@
 
 (function () {
     'use strict';
+
+    // 防止重复执行
+    if (window.doubanLayoutOptimized) return;
+    window.doubanLayoutOptimized = true;
 
     // 添加自定义样式 - 确保五列布局
     GM_addStyle(`
@@ -112,15 +116,12 @@
             display: block !important;
             grid-column: 1 / -1 !important;
         }
-
-        /* 临时调试样式 - 确保网格容器可见 */
-        .content-grid-container {
-            border: 1px solid #f00 !important;
-        }
     `);
 
     // 转换图片为高清
     function getHighResImageUrl(thumbUrl) {
+        if (!thumbUrl) return '';
+        
         let highResUrl = thumbUrl;
         if (highResUrl.includes('/small/')) {
             highResUrl = highResUrl.replace('/small/', '/large/');
@@ -136,7 +137,7 @@
 
     // 处理单张卡片
     function processItem(item) {
-        if (!item.classList.contains('comment-item')) return null;
+        if (!item || !item.classList.contains('comment-item')) return null;
 
         const card = document.createElement('div');
         card.className = 'content-card';
@@ -148,6 +149,7 @@
             const img = clonedPic.querySelector('img');
             if (img) {
                 img.src = getHighResImageUrl(img.src);
+                img.srcset = getHighResImageUrl(img.srcset) || img.srcset;
             }
             card.appendChild(clonedPic);
         }
@@ -174,9 +176,10 @@
             card.appendChild(introContainer);
         }
 
-        // 处理评分和日期
-        const ratingDateEl = item.querySelector('li:has(.rating5-t, .rating4-t, .rating3-t)');
-        if (ratingDateEl) {
+        // 处理评分和日期 - 替换:has()选择器以提高兼容性
+        const ratingEls = item.querySelectorAll('.rating5-t, .rating4-t, .rating3-t, .rating2-t, .rating1-t');
+        if (ratingEls.length > 0 && ratingEls[0].closest('li')) {
+            const ratingDateEl = ratingEls[0].closest('li');
             const ratingDateContainer = document.createElement('div');
             ratingDateContainer.className = 'rating-date';
             ratingDateContainer.innerHTML = ratingDateEl.innerHTML;
@@ -195,61 +198,79 @@
         return card;
     }
 
-
-    // 使用MutationObserver确保元素加载完成
-    const observer = new MutationObserver((mutations, obs) => {
+    // 初始化网格布局
+    function initGridLayout() {
         const items = document.querySelectorAll('.item.comment-item');
-        if (items.length > 0) {
-            console.log(`找到${items.length}个影视条目，开始处理`);
-            obs.disconnect();
+        if (items.length === 0) return false;
 
-            // 创建网格容器
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'content-grid-container';
+        console.log(`找到${items.length}个影视条目，开始处理`);
 
-            // 添加所有处理后的卡片
-            items.forEach(item => {
-                const card = processItem(item);
-                if (card) {
-                    gridContainer.appendChild(card);
-                }
-            });
+        // 创建网格容器
+        const gridContainer = document.createElement('div');
+        gridContainer.className = 'content-grid-container';
 
-            // 插入到页面中 - 选择更可靠的插入位置
-            const targetContainer = document.querySelector('.article') ||
-                document.querySelector('#content') ||
-                document.body;
+        // 添加所有处理后的卡片
+        items.forEach(item => {
+            const card = processItem(item);
+            if (card) {
+                gridContainer.appendChild(card);
+            }
+        });
 
-            if (targetContainer) {
-                // 尝试插入到操作栏后面
-                const optBar = document.querySelector('.opt-bar');
-                if (optBar && optBar.nextSibling) {
-                    targetContainer.insertBefore(gridContainer, optBar.nextSibling);
-                } else {
-                    targetContainer.appendChild(gridContainer);
-                }
-                console.log('网格容器已插入页面');
+        // 插入到页面中 - 选择更可靠的插入位置
+        const targetContainer = document.querySelector('.article') ||
+                              document.querySelector('#content') ||
+                              document.body;
+
+        if (targetContainer) {
+            // 尝试插入到操作栏后面
+            const optBar = document.querySelector('.opt-bar');
+            if (optBar && optBar.nextSibling) {
+                targetContainer.insertBefore(gridContainer, optBar.nextSibling);
             } else {
-                console.error('未找到合适的容器插入网格');
+                targetContainer.appendChild(gridContainer);
             }
-
-            // 隐藏原始内容但保留分页
-            const gridView = document.querySelector('.grid-view');
-            if (gridView) {
-                // 只隐藏内容，保留分页
-                const items = gridView.querySelectorAll('.item');
-                items.forEach(item => { item.style.display = 'none'; });
-            }
-
+            console.log('网格容器已插入页面');
+        } else {
+            console.error('未找到合适的容器插入网格');
+            return false;
         }
 
-    });
+        // 隐藏原始内容但保留分页
+        const gridView = document.querySelector('.grid-view');
+        if (gridView) {
+            // 只隐藏内容，保留分页
+            const items = gridView.querySelectorAll('.item');
+            items.forEach(item => { 
+                item.style.display = 'none'; 
+            });
+        }
 
-    // 观察整个文档的变化
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+        return true;
+    }
 
+    // 尝试直接初始化
+    if (!initGridLayout()) {
+        // 如果直接初始化失败，使用MutationObserver等待内容加载
+        const observer = new MutationObserver((mutations, obs) => {
+            if (initGridLayout()) {
+                obs.disconnect(); // 完成后停止观察
+                console.log('布局优化完成，停止观察');
+            }
+        });
 
+        // 正确设置观察者
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        console.log('开始观察页面加载，准备优化布局');
+
+        // 超时保护 - 5秒后停止观察
+        setTimeout(() => {
+            observer.disconnect();
+            console.log('观察超时，停止观察');
+        }, 5000);
+    }
 })();
