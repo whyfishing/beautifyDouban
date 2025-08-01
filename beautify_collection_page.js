@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         豆瓣影视五列布局优化（修复版）
+// @name         豆瓣影视五列布局优化
 // @namespace    http://tampermonkey.net/
-// @version      1.6
-// @description  豆瓣'我看过的影视'页面优化：移除侧边栏，一行显示5个内容，修复不显示问题
-// @author       豆包编程助手
+// @version      1.0
+// @description  豆瓣'我看过的影视'页面优化：移除侧边栏，一行显示5个内容.
+// @author       Qiu
 // @match        *://movie.douban.com/people/*/collect*
 // @grant        GM_addStyle
 // ==/UserScript==
