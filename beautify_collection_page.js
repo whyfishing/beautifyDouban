@@ -8,7 +8,7 @@
 // @grant        GM_addStyle
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     // 添加自定义样式 - 确保五列布局
@@ -195,74 +195,61 @@
         return card;
     }
 
-    // 初始化函数 - 增加调试信息
-    function init() {
-        console.log('豆瓣影视五列布局脚本初始化');
 
-        // 使用MutationObserver确保元素加载完成
-        const observer = new MutationObserver((mutations, obs) => {
-            const items = document.querySelectorAll('.item.comment-item');
-            if (items.length > 0) {
-                console.log(`找到${items.length}个影视条目，开始处理`);
-                obs.disconnect();
+    // 使用MutationObserver确保元素加载完成
+    const observer = new MutationObserver((mutations, obs) => {
+        const items = document.querySelectorAll('.item.comment-item');
+        if (items.length > 0) {
+            console.log(`找到${items.length}个影视条目，开始处理`);
+            obs.disconnect();
 
-                // 创建网格容器
-                const gridContainer = document.createElement('div');
-                gridContainer.className = 'content-grid-container';
+            // 创建网格容器
+            const gridContainer = document.createElement('div');
+            gridContainer.className = 'content-grid-container';
 
-                // 添加所有处理后的卡片
-                items.forEach(item => {
-                    const card = processItem(item);
-                    if (card) {
-                        gridContainer.appendChild(card);
-                    }
-                });
+            // 添加所有处理后的卡片
+            items.forEach(item => {
+                const card = processItem(item);
+                if (card) {
+                    gridContainer.appendChild(card);
+                }
+            });
 
-                // 插入到页面中 - 选择更可靠的插入位置
-                const targetContainer = document.querySelector('.article') ||
-                                      document.querySelector('#content') ||
-                                      document.body;
+            // 插入到页面中 - 选择更可靠的插入位置
+            const targetContainer = document.querySelector('.article') ||
+                document.querySelector('#content') ||
+                document.body;
 
-                if (targetContainer) {
-                    // 尝试插入到操作栏后面
-                    const optBar = document.querySelector('.opt-bar');
-                    if (optBar && optBar.nextSibling) {
-                        targetContainer.insertBefore(gridContainer, optBar.nextSibling);
-                    } else {
-                        targetContainer.appendChild(gridContainer);
-                    }
-                    console.log('网格容器已插入页面');
+            if (targetContainer) {
+                // 尝试插入到操作栏后面
+                const optBar = document.querySelector('.opt-bar');
+                if (optBar && optBar.nextSibling) {
+                    targetContainer.insertBefore(gridContainer, optBar.nextSibling);
                 } else {
-                    console.error('未找到合适的容器插入网格');
+                    targetContainer.appendChild(gridContainer);
                 }
-
-                // 隐藏原始内容但保留分页
-                const gridView = document.querySelector('.grid-view');
-                if (gridView) {
-                    // 只隐藏内容，保留分页
-                    const items = gridView.querySelectorAll('.item');
-                    items.forEach(item => {
-                        item.style.display = 'none';
-                    });
-                }
-
+                console.log('网格容器已插入页面');
+            } else {
+                console.error('未找到合适的容器插入网格');
             }
-        });
 
-        // 观察整个文档的变化
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+            // 隐藏原始内容但保留分页
+            const gridView = document.querySelector('.grid-view');
+            if (gridView) {
+                // 只隐藏内容，保留分页
+                const items = gridView.querySelectorAll('.item');
+                items.forEach(item => { item.style.display = 'none'; });
+            }
 
-        // 设置超时保护
-        setTimeout(() => {
-            observer.disconnect();
-            console.log('观察超时，停止等待元素');
-        }, 10000);
-    }
+        }
 
-    // 立即执行初始化，不等待load事件，确保不错过时机
-    init();
+    });
+
+    // 观察整个文档的变化
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
 
 })();
