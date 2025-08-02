@@ -1,12 +1,13 @@
 // ==UserScript==
-// @name         豆瓣影视五列布局优化
+// @name         豆瓣影视五列布局优化（自动加载版）
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  豆瓣'我看过的影视'页面优化：移除侧边栏，一行显示5个内容.
+// @version      2.0
+// @description  豆瓣'我看过的影视'页面优化：移除侧边栏，一行显示5个内容，支持滚动自动加载下一页
 // @author       Qiu
 // @match        *://movie.douban.com/people/*/collect*
 // @match        https://movie.douban.com/mine?status=collect
 // @grant        GM_addStyle
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 (function () {
@@ -16,7 +17,13 @@
     if (window.doubanLayoutOptimized) return;
     window.doubanLayoutOptimized = true;
 
-    // 添加自定义样式 - 确保五列布局
+    // 全局变量
+    let currentPage = 1;
+    let isLoading = false;
+    let hasMore = true;
+    let gridContainer = null;
+
+    // 添加自定义样式 - 确保五列布局和加载提示
     GM_addStyle(`
         /* 移除侧边栏 */
         .aside, .side-info, .mod, .tag-list {
@@ -108,14 +115,42 @@
             margin: 0 12px !important;
         }
 
-        /* 分页条样式 */
+        /* 隐藏原始分页 */
         .paginator {
-            clear: both !important;
+            display: none !important;
+        }
+
+        /* 加载提示样式 */
+        .loading-indicator {
+            grid-column: 1 / -1 !important;
             text-align: center !important;
             padding: 20px 0 !important;
-            margin: 20px 0 !important;
-            display: block !important;
+            color: #666 !important;
+            font-size: 14px !important;
+        }
+
+        .loading-spinner {
+            display: inline-block !important;
+            width: 20px !important;
+            height: 20px !important;
+            border: 3px solid rgba(0, 0, 0, 0.1) !important;
+            border-radius: 50% !important;
+            border-top-color: #333 !important;
+            animation: spin 1s ease-in-out infinite !important;
+            margin-right: 8px !important;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 无更多内容提示 */
+        .no-more {
             grid-column: 1 / -1 !important;
+            text-align: center !important;
+            padding: 20px 0 !important;
+            color: #999 !important;
+            font-size: 14px !important;
         }
     `);
 
@@ -177,7 +212,7 @@
             card.appendChild(introContainer);
         }
 
-        // 处理评分和日期 - 替换:has()选择器以提高兼容性
+        // 处理评分和日期
         const ratingEls = item.querySelectorAll('.rating5-t, .rating4-t, .rating3-t, .rating2-t, .rating1-t');
         if (ratingEls.length > 0 && ratingEls[0].closest('li')) {
             const ratingDateEl = ratingEls[0].closest('li');
@@ -199,6 +234,89 @@
         return card;
     }
 
+    // 创建加载指示器
+    function createLoadingIndicator() {
+        const indicator = document.createElement('div');
+        indicator.className = 'loading-indicator';
+        indicator.innerHTML = '<span class="loading-spinner"></span>正在加载更多内容...';
+        return indicator;
+    }
+
+    // 创建无更多内容提示
+    function createNoMoreIndicator() {
+        const indicator = document.createElement('div');
+        indicator.className = 'no-more';
+        indicator.textContent = '已加载全部内容';
+        return indicator;
+    }
+
+    // 加载并处理下一页内容
+    function loadNextPage() {
+        if (isLoading || !hasMore) return;
+        isLoading = true;
+
+        // 显示加载指示器
+        const loadingIndicator = createLoadingIndicator();
+        gridContainer.appendChild(loadingIndicator);
+
+        // 构建下一页URL
+        currentPage++;
+        let nextPageUrl = window.location.href;
+        
+        // 处理不同格式的URL
+        if (nextPageUrl.includes('?')) {
+            if (nextPageUrl.includes('start=')) {
+                // 替换现有start参数
+                nextPageUrl = nextPageUrl.replace(/start=\d+/, `start=${(currentPage - 1) * 15}`);
+            } else {
+                // 添加start参数
+                nextPageUrl += `&start=${(currentPage - 1) * 15}`;
+            }
+        } else {
+            nextPageUrl += `?start=${(currentPage - 1) * 15}`;
+        }
+
+        // 请求下一页内容
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: nextPageUrl,
+            onload: function (response) {
+                // 移除加载指示器
+                gridContainer.removeChild(loadingIndicator);
+
+                // 解析HTML响应
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(response.responseText, 'text/html');
+                const newItems = doc.querySelectorAll('.item.comment-item');
+
+                // 检查是否有新内容
+                if (newItems.length === 0) {
+                    hasMore = false;
+                    gridContainer.appendChild(createNoMoreIndicator());
+                    isLoading = false;
+                    return;
+                }
+
+                // 处理并添加新内容
+                newItems.forEach(item => {
+                    const card = processItem(item);
+                    if (card) {
+                        gridContainer.appendChild(card);
+                    }
+                });
+
+                isLoading = false;
+                console.log(`已加载第${currentPage}页内容`);
+            },
+            onerror: function (error) {
+                console.error('加载下一页失败:', error);
+                gridContainer.removeChild(loadingIndicator);
+                isLoading = false;
+                currentPage--; // 恢复页码
+            }
+        });
+    }
+
     // 初始化网格布局
     function initGridLayout() {
         const items = document.querySelectorAll('.item.comment-item');
@@ -207,7 +325,7 @@
         console.log(`找到${items.length}个影视条目，开始处理`);
 
         // 创建网格容器
-        const gridContainer = document.createElement('div');
+        gridContainer = document.createElement('div');
         gridContainer.className = 'content-grid-container';
 
         // 添加所有处理后的卡片
@@ -218,7 +336,7 @@
             }
         });
 
-        // 插入到页面中 - 选择更可靠的插入位置
+        // 插入到页面中
         const targetContainer = document.querySelector('.article') ||
                               document.querySelector('#content') ||
                               document.body;
@@ -237,17 +355,28 @@
             return false;
         }
 
-        // 隐藏原始内容但保留分页
+        // 隐藏原始内容和分页
         const gridView = document.querySelector('.grid-view');
         if (gridView) {
-            // 只隐藏内容，保留分页
-            const items = gridView.querySelectorAll('.item');
-            items.forEach(item => {
+            // 隐藏原始内容
+            const originalItems = gridView.querySelectorAll('.item');
+            originalItems.forEach(item => {
                 item.style.display = 'none';
             });
         }
 
+        // 设置滚动监听
+        window.addEventListener('scroll', handleScroll);
+
         return true;
+    }
+
+    // 滚动处理函数
+    function handleScroll() {
+        // 当滚动到页面底部附近时加载下一页
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+            loadNextPage();
+        }
     }
 
     // 尝试直接初始化
@@ -260,7 +389,7 @@
             }
         });
 
-        // 正确设置观察者
+        // 设置观察者
         observer.observe(document.body, {
             childList: true,
             subtree: true
@@ -268,7 +397,7 @@
 
         console.log('开始观察页面加载，准备优化布局');
 
-        // 超时保护 - 5秒后停止观察
+        // 超时保护
         setTimeout(() => {
             observer.disconnect();
             console.log('观察超时，停止观察');
