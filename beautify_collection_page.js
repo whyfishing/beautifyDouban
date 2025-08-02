@@ -1,11 +1,16 @@
 // ==UserScript==
-// @name         豆瓣影视五列布局优化（自动加载版）
-// @namespace    http://tampermonkey.net/
+// @name         豆瓣影视五列布局优化+自动加载下一页
+// @namespace    https://github.com/whyfishing/
 // @version      2.0
-// @description  豆瓣'我看过的影视'页面优化：移除侧边栏，一行显示5个内容，支持滚动自动加载下一页
-// @author       Qiu
+// @description  豆瓣'我看过/在看/想看的影视'页面优化：移除侧边栏，一行显示5个内容，支持滚动自动加载下一页
+// @author       Half-century meteor shower
 // @match        *://movie.douban.com/people/*/collect*
-// @match        https://movie.douban.com/mine?status=collect
+// @match        https://movie.douban.com/*?status=collect
+// @match        https://movie.douban.com/people/*/wish
+// @match        https://movie.douban.com/people/*/do
+// @match        https://book.douban.com/people/*/collect
+// @match        https://book.douban.com/people/*/do
+// @match        https://book.douban.com/people/*/wish
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
@@ -262,7 +267,7 @@
         // 构建下一页URL
         currentPage++;
         let nextPageUrl = window.location.href;
-        
+
         // 处理不同格式的URL
         if (nextPageUrl.includes('?')) {
             if (nextPageUrl.includes('start=')) {
