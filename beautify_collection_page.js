@@ -379,7 +379,7 @@
     // 滚动处理函数
     function handleScroll() {
         // 当滚动到页面底部附近时加载下一页
-        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 1000) {
             loadNextPage();
         }
     }
