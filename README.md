@@ -33,7 +33,6 @@
 优化脚本：`beautify_home_page.js`
 
 
-
 ### 优化内容
 
 - 移除侧边栏
